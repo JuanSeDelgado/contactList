@@ -1,0 +1,8 @@
+
+body {  background-color: #242424 !important;
+}
+.profileImg{
+  width: 180px;
+  border-radius: 100px;
+  margin: 10px 40px 10px 20px;
+}
