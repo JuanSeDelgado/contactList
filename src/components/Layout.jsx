@@ -1,6 +1,6 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import ContactList from '../views/ContactList.jsx';
-import AddContact from "../Views/AddContact.jsx";
+import AddContact from "../views/AddContact.jsx";
 import NotFound  from '../views/NotFound.jsx';
 
 

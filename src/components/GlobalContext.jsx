@@ -1,29 +1,65 @@
 import { createContext, useEffect, useReducer, useState } from "react";
-import { useNavigate } from "react-router-dom";
 
 export const GlobalContext = createContext();
 
 const GlobalContextProvider = ({ children }) => {
+
     const myAgenda = "juanSeAgenda";
     const url = `https://playground.4geeks.com/contact/agendas/${myAgenda}`;
     let initialContacts = [];
-    const [contactToEdit ,setContactToEdit] = useState(null);
-   
+    const [contactToEdit, setContactToEdit] = useState(null);
 
-    useEffect(() => {
-        console.log("useEffect Triggered");
-        getAgenda();
-    }, []);
+    const createAgenda = async () => {
+        try {
+            const res = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ slug: myAgenda }),
+            });
+            // Si ya existe, la API puede devolver 400, lo consideramos como éxito
+            if (res.status === 400) {
+                console.warn("La agenda ya existe.");
+                return true;
+            }
+            if (!res.ok) {
+                throw new Error("No se pudo crear la agenda");
+            }
+            const data = await res.json();
+            console.log("Agenda creada:", data);
+            return true;
+        } catch (err) {
+            console.error("Error al crear la agenda:", err);
+            return false;
+        }
+    };
 
-    const getAgenda = () => {
-        fetch(`${url}/contacts`)
-            .then((res) => res.json())
-            .then((data) => {
+    const getAgenda = async (retry = 0) => {
+        try {
+            const res = await fetch(`${url}/contacts`);
+            if (res.status === 404) {
+                console.log("Agenda no encontrada, creando...");
+                const created = await createAgenda();
+                if (created && retry < 3) {
+                    setTimeout(() => getAgenda(retry + 1), 700);
+                }
+                return;
+            }
+            const data = await res.json();
+            if (data && data.contacts) {
                 console.log("Fetched contacts:", data.contacts);
                 dispatch({ type: "SET_CONTACTS", payload: data.contacts });
-            })
-            .catch((err) => console.error("There was an error:", err));
+            }
+        } catch (err) {
+            console.error("There was an error:", err);
+        }
     };
+
+    // Solo un useEffect, solo llama a getAgenda
+    useEffect(() => {
+        getAgenda();
+    }, []);
 
     function contactReducer(contactList, action) {
         switch (action.type) {
@@ -39,7 +75,7 @@ const GlobalContextProvider = ({ children }) => {
                         name: action.payload.name,
                         phone: action.payload.phone,
                         email: action.payload.email,
-                        address: action.payload.address
+                        address: action.payload.address,
                     }),
                 })
                     .then((response) => {
@@ -50,10 +86,15 @@ const GlobalContextProvider = ({ children }) => {
                     })
                     .then((data) => {
                         if (data) {
-                            dispatch({ type: "SET_CONTACTS", payload: [...contactList, data] });
+                            dispatch({
+                                type: "SET_CONTACTS",
+                                payload: [...contactList, data],
+                            });
                         }
                     })
-                    .catch((error) => console.error("Opps there was an error:", error));
+                    .catch((error) =>
+                        console.error("Opps there was an error:", error)
+                    );
                 return contactList;
             }
             case "EDIT_CONTACT": {
@@ -61,33 +102,36 @@ const GlobalContextProvider = ({ children }) => {
                 setContactToEdit(action.payload);
                 return contactList;
             }
-            case 'UPDATE_CONTACT':{
-                console.log('Updating Contact ...')
+            case "UPDATE_CONTACT": {
+                console.log("Updating Contact ...");
                 fetch(`${url}/contacts/${action.payload.id}`, {
-                    method: 'PUT',
+                    method: "PUT",
                     headers: {
                         "Content-Type": "application/json",
                     },
-                    body: JSON.stringify(
-                        {
-                            name: action.payload.name,
-                            phone: action.payload.phone,
-                            email: action.payload.email,
-                            address: action.payload.address
+                    body: JSON.stringify({
+                        name: action.payload.name,
+                        phone: action.payload.phone,
+                        email: action.payload.email,
+                        address: action.payload.address,
+                    }),
+                })
+                    .then((res) => {
+                        if (!res.ok) {
+                            throw new Error("Contact can't be updated");
                         }
-                    ),
-                }).then ((res)=> {
-                    if(!res.ok){
-                        throw new Error("Contact can't be updated");
-                    }
-                    return res.json()
-                }).then((data)=>{
-                    if (data){
-                        getAgenda();
-                        setContactToEdit(null);
-                    }
-                }).catch((error)=> console.error("Oops there was an error:",error))
-                return contactList
+                        return res.json();
+                    })
+                    .then((data) => {
+                        if (data) {
+                            getAgenda();
+                            setContactToEdit(null);
+                        }
+                    })
+                    .catch((error) =>
+                        console.error("Oops there was an error:", error)
+                    );
+                return contactList;
             }
             case "DELETE_CONTACT": {
                 console.log("------ On Delete ------");
@@ -131,9 +175,17 @@ const GlobalContextProvider = ({ children }) => {
 
     const [contactList, dispatch] = useReducer(contactReducer, initialContacts);
 
-    //useReducer for list or for contact??
     return (
-        <GlobalContext.Provider value={{ contact, setContact, contactList, dispatch, contactToEdit, setContactToEdit }}>
+        <GlobalContext.Provider
+            value={{
+                contact,
+                setContact,
+                contactList,
+                dispatch,
+                contactToEdit,
+                setContactToEdit,
+            }}
+        >
             {children}
         </GlobalContext.Provider>
     );
